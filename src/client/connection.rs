@@ -87,16 +87,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
             flushed: false,
             buf: BytesMut::new(),
         };
-
+        println!("WKXLOG create connection");
         let fed_auth_required = matches!(config.auth, AuthMethod::AADToken(_));
 
         let prelogin = connection
             .prelogin(config.encryption, fed_auth_required)
             .await?;
+        println!("WKXLOG do prelogin");
 
         let encryption = prelogin.negotiated_encryption(config.encryption);
 
         let connection = connection.tls_handshake(&config, encryption).await?;
+        println!("WKXLOG do tls_handshake");
 
         let mut connection = connection
             .login(
@@ -110,7 +112,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
             )
             .await?;
 
+        println!("WKXLOG do login");
+
         connection.flush_done().await?;
+        println!("WKXLOG do flush_done");
 
         Ok(connection)
     }
