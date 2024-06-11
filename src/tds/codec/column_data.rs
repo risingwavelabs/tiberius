@@ -86,7 +86,8 @@ pub enum ColumnData<'a> {
 }
 
 impl<'a> ColumnData<'a> {
-    pub(crate) fn type_name(&self) -> Cow<'static, str> {
+    /// Return type name in SQL Server.
+    pub fn type_name(&self) -> Cow<'static, str> {
         match self {
             ColumnData::U8(_) => "tinyint".into(),
             ColumnData::I16(_) => "smallint".into(),
