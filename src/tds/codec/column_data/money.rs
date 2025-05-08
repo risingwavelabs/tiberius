@@ -5,18 +5,18 @@ where
     R: SqlReadBytes + Unpin,
 {
     let res = match len {
-        0 => ColumnData::F64(None),
-        4 => ColumnData::F64(Some(src.read_i32_le().await? as f64 / 1e4)),
-        8 => ColumnData::F64(Some({
+        0 => ColumnData::I64(None),
+        4 => ColumnData::I64(Some(src.read_i32_le().await? as i64 / 1e4 as i64)),
+        8 => ColumnData::I64(Some({
             let high = src.read_i32_le().await? as i64;
-            let low = src.read_u32_le().await? as f64;
+            let low = src.read_u32_le().await? as i64;
 
-            ((high << 32) as f64 + low) / 1e4
+            (high << 32) + low / 1e4 as i64
         })),
         _ => {
             return Err(Error::Protocol(
                 format!("money: length of {} is invalid", len).into(),
-            ))
+            ));
         }
     };
 
