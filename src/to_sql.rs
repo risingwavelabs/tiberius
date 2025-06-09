@@ -168,6 +168,7 @@ impl<'a> IntoSql<'a> for Option<&'a Uuid> {
 
 into_sql!(self_,
           String: (ColumnData::String, Cow::from(self_));
+          Cow<'_, str>: (ColumnData::String, self_.clone());
           Vec<u8>: (ColumnData::Binary, Cow::from(self_));
           Numeric: (ColumnData::Numeric, self_);
           XmlData: (ColumnData::Xml, Cow::Owned(self_));
