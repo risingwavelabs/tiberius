@@ -45,7 +45,8 @@ where
                 buf.push(src.read_u16_le().await?);
             }
 
-            String::from_utf16(&buf[..])?
+            // Lossy decode: a malformed row must not kill the stream.
+            String::from_utf16_lossy(&buf[..])
         }
     };
 

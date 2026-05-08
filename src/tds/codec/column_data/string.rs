@@ -37,7 +37,10 @@ where
             }
 
             let buf: Vec<_> = buf.chunks(2).map(LittleEndian::read_u16).collect();
-            Ok(Some(String::from_utf16(&buf)?.into()))
+            // Use lossy decoding so a single malformed row (e.g. a lone surrogate
+            // produced by upstream tooling) cannot terminate the entire stream.
+            // Invalid code units are replaced with U+FFFD.
+            Ok(Some(String::from_utf16_lossy(&buf).into()))
         }
         _ => Ok(None),
     }
