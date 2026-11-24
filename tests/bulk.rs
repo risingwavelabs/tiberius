@@ -204,7 +204,8 @@ where
     let res = req.finalize().await?;
     assert_eq!(1, res.total());
 
-    let value: f64 = conn
+    // Money is decoded as the raw value scaled by 10^4.
+    let value: i64 = conn
         .query(&format!("SELECT content FROM {}", table), &[])
         .await?
         .into_row()
@@ -213,7 +214,7 @@ where
         .get(0)
         .unwrap();
 
-    assert!((value - 1234.5678).abs() < 1e-6, "got {value}");
+    assert_eq!(value, 12_345_678);
 
     Ok(())
 }

@@ -242,21 +242,19 @@ mod tests {
     use crate::sql_read_bytes::test_utils::IntoSqlReadBytes;
     use bytes::{BufMut, BytesMut};
 
-    // `smallmoney` (len 4) is a single scaled `i32` divided by 1e4: 12345 -> 1.2345.
+    // `smallmoney` (len 4) is a single scaled `i32`, decoded as the raw scaled
+    // value: 12345 -> 12345 (i.e. 1.2345).
     #[tokio::test]
     async fn decode_smallmoney_arm() {
         let mut buf = BytesMut::new();
         buf.put_i32_le(12345);
 
         let data = decode(&mut buf.into_sql_read_bytes(), 4).await.unwrap();
-        match data {
-            ColumnData::F64(Some(v)) => assert!((v - 1.2345).abs() < 1e-9, "v={}", v),
-            other => panic!("expected F64, got {:?}", other),
-        }
+        assert_eq!(data, ColumnData::I64(Some(12345)));
     }
 
-    // `money` (len 8) is two 32-bit words: `((high << 32) + low) / 1e4`.
-    // high = 1, low = 30000 gives ((1 << 32) + 30000) / 1e4 = 429499.7296.
+    // `money` (len 8) is two 32-bit words, decoded as the raw scaled value
+    // `(high << 32) | low`: high = 1, low = 30000 gives 4294997296 (429499.7296).
     #[tokio::test]
     async fn decode_money_arm() {
         let mut buf = BytesMut::new();
@@ -264,10 +262,19 @@ mod tests {
         buf.put_u32_le(30000); // low word
 
         let data = decode(&mut buf.into_sql_read_bytes(), 8).await.unwrap();
-        match data {
-            ColumnData::F64(Some(v)) => assert!((v - 429499.7296).abs() < 1e-6, "v={}", v),
-            other => panic!("expected F64, got {:?}", other),
-        }
+        assert_eq!(data, ColumnData::I64(Some((1 << 32) | 30000)));
+    }
+
+    // A negative money value keeps its sign in the high word.
+    #[tokio::test]
+    async fn decode_negative_money_arm() {
+        let scaled: i64 = -123_456_789_012_345;
+        let mut buf = BytesMut::new();
+        buf.put_i32_le((scaled >> 32) as i32);
+        buf.put_u32_le(scaled as u32);
+
+        let data = decode(&mut buf.into_sql_read_bytes(), 8).await.unwrap();
+        assert_eq!(data, ColumnData::I64(Some(scaled)));
     }
 
     // Reverses the on-wire money representation the same way `decode` does,

@@ -1244,6 +1244,28 @@ mod tests {
         assert!(matches!(error, Error::Protocol(_)));
     }
 
+    /// Like `test_round_trip`, for types whose decoded representation differs
+    /// from the encoded input (money is encoded from `f64`/`Numeric` but decoded
+    /// as the raw scaled `i64`).
+    async fn test_encode_then_decode(ti: TypeInfo, d: ColumnData<'_>, expected: ColumnData<'_>) {
+        let mut buf = BytesMut::new();
+        let mut buf_with_ti = BytesMutWithTypeInfo::new(&mut buf).with_type_info(&ti);
+
+        d.encode(&mut buf_with_ti).expect("encode must succeed");
+
+        let reader = &mut buf.into_sql_read_bytes();
+        let nd = ColumnData::decode(reader, &ti)
+            .await
+            .expect("decode must succeed");
+
+        assert_eq!(nd, expected);
+
+        reader
+            .read_u8()
+            .await
+            .expect_err("decode must consume entire buffer");
+    }
+
     async fn test_round_trip(ti: TypeInfo, d: ColumnData<'_>) {
         let mut buf = BytesMut::new();
         let mut buf_with_ti = BytesMutWithTypeInfo::new(&mut buf).with_type_info(&ti);
@@ -2067,18 +2089,20 @@ mod tests {
 
     #[tokio::test]
     async fn f64_with_fixedlen_money() {
-        test_round_trip(
+        test_encode_then_decode(
             TypeInfo::FixedLen(FixedLenType::Money),
             ColumnData::F64(Some(3.5)),
+            ColumnData::I64(Some(35000)),
         )
         .await;
     }
 
     #[tokio::test]
     async fn f64_with_fixedlen_smallmoney() {
-        test_round_trip(
+        test_encode_then_decode(
             TypeInfo::FixedLen(FixedLenType::Money4),
             ColumnData::F64(Some(3.5)),
+            ColumnData::I64(Some(35000)),
         )
         .await;
     }
@@ -2219,18 +2243,20 @@ mod tests {
 
     #[tokio::test]
     async fn f64_with_varlen_money() {
-        test_round_trip(
+        test_encode_then_decode(
             TypeInfo::VarLenSized(VarLenContext::new(VarLenType::Money, 8, None)),
             ColumnData::F64(Some(3.5)),
+            ColumnData::I64(Some(35000)),
         )
         .await;
     }
 
     #[tokio::test]
     async fn none_f64_with_varlen_money() {
-        test_round_trip(
+        test_encode_then_decode(
             TypeInfo::VarLenSized(VarLenContext::new(VarLenType::Money, 8, None)),
             ColumnData::F64(None),
+            ColumnData::I64(None),
         )
         .await;
     }
@@ -2410,7 +2436,7 @@ mod tests {
 
         let reader = &mut buf.into_sql_read_bytes();
         let nd = ColumnData::decode(reader, &ti).await.unwrap();
-        assert_eq!(nd, ColumnData::F64(Some(3.5)));
+        assert_eq!(nd, ColumnData::I64(Some(35000)));
     }
 
     #[tokio::test]
@@ -2420,7 +2446,7 @@ mod tests {
 
         let reader = &mut buf.into_sql_read_bytes();
         let nd = ColumnData::decode(reader, &ti).await.unwrap();
-        assert_eq!(nd, ColumnData::F64(None));
+        assert_eq!(nd, ColumnData::I64(None));
     }
 
     // ----- Numeric rescale on encode (lines 859-879) -----

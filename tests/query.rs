@@ -2654,10 +2654,11 @@ where
         .await?
         .unwrap();
 
-    assert_eq!(Some(1.23), row.get(0));
-    assert_eq!(Some(2.33), row.get(1));
-    assert_eq!(Some(4.56), row.get(2));
-    assert_eq!(Some(5.67), row.get(3));
+    // Money is decoded as the raw value scaled by 10^4.
+    assert_eq!(Some(12300i64), row.get(0));
+    assert_eq!(Some(23300i64), row.get(1));
+    assert_eq!(Some(45600i64), row.get(2));
+    assert_eq!(Some(56700i64), row.get(3));
 
     Ok(())
 }
