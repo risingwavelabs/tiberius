@@ -87,6 +87,21 @@ impl Error {
             _ => None,
         }
     }
+
+    /// The server did not send the next part of a command result within
+    /// [`Config::command_timeout`](crate::Config::command_timeout).
+    pub(crate) fn command_timeout(timeout: std::time::Duration) -> Self {
+        Error::Io {
+            kind: io::ErrorKind::TimedOut,
+            message: format!(
+                "the server did not send the next part of the command result \
+                 within {timeout:?} (it may have stalled, or be responding too \
+                 slowly for the configured bound); the connection is now out of \
+                 sync and must be dropped. Adjust the bound with \
+                 `Config::command_timeout`, or pass `None` to wait indefinitely."
+            ),
+        }
+    }
 }
 
 impl From<uuid::Error> for Error {

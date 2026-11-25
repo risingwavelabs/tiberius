@@ -98,16 +98,7 @@ impl Stream for RoundTripTimeout<'_> {
                         if let Some(poison) = &this.poison {
                             poison.store(true, Ordering::Release);
                         }
-                        Poll::Ready(Some(Err(crate::Error::Io {
-                            kind: std::io::ErrorKind::TimedOut,
-                            message: format!(
-                                "the server did not send the next part of the command result \
-                                 within {timeout:?} (it may have stalled, or be responding too \
-                                 slowly for the configured bound); the connection is now out of \
-                                 sync and must be dropped. Adjust the bound with \
-                                 `Config::command_timeout`, or pass `None` to wait indefinitely."
-                            ),
-                        })))
+                        Poll::Ready(Some(Err(crate::Error::command_timeout(timeout))))
                     }
                     Poll::Pending => Poll::Pending,
                 }
@@ -934,6 +925,39 @@ mod tests {
         assert!(
             reuse.unwrap_err().to_string().contains("out of sync"),
             "reuse should be rejected with a command-timeout desync error"
+        );
+    }
+
+    #[tokio::test]
+    async fn command_timeout_bounds_flushing_an_abandoned_response() {
+        use std::time::Duration;
+
+        // The previous response sent one non-final packet and then stalled, so
+        // flushing it before the next request waits for a packet that never
+        // comes.
+        let script = normal_packet_bytes(&envchange_packet_size("8192", "4096"));
+        let mut conn = Connection::test_over(
+            AnswerThenSilent {
+                data: script,
+                pos: 0,
+            },
+            false,
+        );
+        conn.context_mut()
+            .set_command_timeout(Some(Duration::from_millis(100)));
+
+        let err = tokio::time::timeout(Duration::from_secs(5), conn.flush_stream())
+            .await
+            .expect("the command timeout must bound flushing a stalled response")
+            .expect_err("flushing a stalled response must fail");
+
+        assert!(
+            is_timed_out(&err),
+            "expected a TimedOut error, got: {err:?}"
+        );
+        assert!(
+            conn.ensure_not_poisoned().is_err(),
+            "a command timeout while flushing must leave the connection unusable"
         );
     }
 

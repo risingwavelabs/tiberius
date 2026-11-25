@@ -596,7 +596,9 @@ impl Config {
 
     /// Sets a per-response deadline applied while reading command results
     /// (`query`, `execute`, `simple_query`, the `bulk_insert` server
-    /// acknowledgement and `column_metadata`).
+    /// acknowledgement and `column_metadata`), including the rest of a result
+    /// stream that was dropped before its end, which the next command reads and
+    /// discards first.
     ///
     /// # Semantics
     ///

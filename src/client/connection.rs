@@ -484,8 +484,32 @@ impl<S: AsyncRead + AsyncWrite + Unpin + Send> Connection<S> {
             return Ok(());
         }
 
+        // The rest of an abandoned response is still a command result, so each
+        // wait for its next packet gets the same bound as reading it through
+        // the token stream would.
+        let command_timeout = self.context.command_timeout();
+        let command_desync = self.command_desync_flag();
+
         loop {
-            match self.try_next().await {
+            let next = match command_timeout {
+                None => self.try_next().await,
+                Some(timeout) => {
+                    match futures_util::future::select(
+                        self.try_next(),
+                        futures_timer::Delay::new(timeout),
+                    )
+                    .await
+                    {
+                        futures_util::future::Either::Left((next, _)) => next,
+                        futures_util::future::Either::Right(_) => {
+                            command_desync.store(true, Ordering::Release);
+                            return Err(crate::Error::command_timeout(timeout));
+                        }
+                    }
+                }
+            };
+
+            match next {
                 Ok(Some(packet)) => {
                     event!(
                         Level::WARN,
